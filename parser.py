@@ -68,7 +68,7 @@ class Parser:
             self.parse_fileoc()
         elif current_token[1] == "use" or current_token[1] == "from" or current_token[1] == "var":
             self.parse_use_from_var()
-        elif current_token[1] == "break" or current_token[1] == "pass" or current_token[1] == "del":
+        elif current_token[1] in ["break", "del", "pass", "return"]:
             self.parse_simple_statement()
         elif current_token[0] in [
             "String", "Number", "Boolean", "Float", "Identifier",
@@ -95,7 +95,12 @@ class Parser:
         self.parse_block()
 
     def parse_for(self):
-        pass
+        self.advance()
+        if self.expect("Identifier", "MissingIdentifier"):
+            if self.expect("In", "MissingParameterError"):
+                self.parse_expression()
+                if self.expect("Semicolon", "MissingSemicolonError"):
+                    self.parse_block()
 
     def parse_func(self):
         self.advance()
@@ -147,17 +152,28 @@ class Parser:
         pass
 
     def parse_simple_statement(self):
-        pass
+        current_token = self.peek()
+        if current_token[1] in ["break", "pass"]:
+            self.advance()
+        elif current_token[1] == "del":
+            self.advance()
+            self.parse_expression()
+        elif current_token[1] == "return":
+            self.advance()
+            current_token = self.peek()
+            if current_token[0] not in ["Newline", "Indent", "Dedent"]:
+                self.parse_expression()
 
     def parse_use_from_var(self):
         pass
 
     def parse_primary(self):
         current_token = self.peek()
-        if current_token[0] in ["String", "Number", "Float", "Boolean", "Identifier"]:
+        if current_token[0] in ["String", "Number", "Float", "Boolean"]:
             self.advance()
             return current_token
-
+        elif current_token[0] == "Identifier":
+            return self.parse_identifier(current_token)
         elif current_token[0] == "LeftParen":
             self.advance()
             expression = self.parse_expression()
@@ -215,8 +231,78 @@ class Parser:
                 len(current_token[1])
             ))
 
+    def parse_unary(self):
+        current_token = self.peek()
+        if current_token[0] in ["Minus", "Not"]:
+            self.advance()
+            expression = self.parse_unary()
+            return current_token[1] + expression
+        else:
+            result = self.parse_primary()
+            return result
+
+    def parse_power(self):
+        left = self.parse_unary()
+        current_token = self.peek()
+        if current_token[0] == "Power":
+            self.advance()
+            right = self.parse_power()
+            return left + "**" + right
+        else:
+            return left
+
+    def parse_multiplication(self):
+        left = self.parse_power()
+        current_token = self.peek()
+        while current_token[0] in ["Multiply", "Divide", "Modulo"]:
+            self.advance()
+            right = self.parse_power()
+            left = left + current_token[1] + right
+            current_token = self.peek()
+        return left
+
+    def parse_addition(self):
+        left = self.parse_multiplication()
+        current_token = self.peek()
+        while current_token[0] in ["Plus", "Minus"]:
+            self.advance()
+            right = self.parse_multiplication()
+            left = left + current_token[1] + right
+            current_token = self.peek()
+        return left
+
+    def parse_comparison(self):
+        left = self.parse_addition()
+        current_token = self.peek()
+        if current_token[0] in ["Equal", "NotEqual", "Smaller", "Bigger", "In", "NotIn", "Is", "IsNot"]:
+            self.advance()
+            right = self.parse_addition()
+            return left + current_token[1] + right
+        else:
+            return left
+
+    def parse_also(self):
+        left = self.parse_comparison()
+        current_token = self.peek()
+        while current_token[0] == "Also":
+            self.advance()
+            right = self.parse_comparison()
+            left = left + current_token[1] + right
+            current_token = self.peek()
+        return left
+
+    def parse_or(self):
+        left = self.parse_also()
+        current_token = self.peek()
+        while current_token[0] == "Or":
+            self.advance()
+            right = self.parse_also()
+            left = left + current_token[1] + right
+            current_token = self.peek()
+        return left
+
     def parse_expression(self):
-        pass
+        return self.parse_or()
 
     def parse_block(self):
         if self.expect("Indent", "IndentationError"):
@@ -230,7 +316,48 @@ class Parser:
             self.advance()
 
     def parse_identifier(self, identifier):
-        pass
+        self.advance()
+        current_token = self.peek()
+        if current_token[0] == "LeftParen":
+            self.advance()
+            arguments = []
+            current_token = self.peek()
+            if current_token[0] == "RightParen":
+                self.advance()
+            else:
+                arguments.append(self.parse_expression())
+                current_token = self.peek()
+                while current_token[0] == "Comma":
+                    self.advance()
+                    arguments.append(self.parse_expression())
+                    current_token = self.peek()
+                self.expect("RightParen", "MissingClosingParen")
+            return {
+                "type": "Call",
+                "name": identifier,
+                "arguments": arguments
+            }
+
+        elif current_token[0] == "LeftBracket":
+            self.advance()
+            index = self.parse_expression()
+            if self.match("Semicolon"):
+                end = self.parse_expression()
+                self.expect("RightBracket", "MissingClosingBracket")
+                return {
+                    "type": "Slice",
+                    "object": identifier,
+                    "start": index,
+                    "end": end
+                }
+            self.expect("RightBracket", "MissingClosingBracket")
+            return {
+                "type": "Index",
+                "object": identifier,
+                "index": index
+            }
+        else:
+            return identifier
 
     def parse_program(self):
         while not self.eof_reached:

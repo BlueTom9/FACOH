@@ -28,86 +28,85 @@ FACOH or "Flickz's Advanced Computational Operations Hub" is a personal programm
 |  20 | `%`                | same                                             |
 |  21 | `**`               | same                                             |
 |  22 | `=`                | same                                             |
-|  23 | `==`               | same                                             |
-|  24 | `!=`               | same                                             |
-|  25 | `<`                | same                                             |
-|  26 | `>`                | same                                             |
-|  27 | `and`              | `also`                                           |
-|  28 | `or`               | `or`                                             |
-|  29 | `not`              | `!`                                              |
-|  30 | `in`               | `in`                                             |
-|  31 | `not in`           | `!in`                                            |
-|  32 | `is`               | `is`                                             |
-|  33 | `is not`           | `!is`                                            |
-|  34 | `if`               | `if operation =`                                 |
-|  35 | `else`             | same                                             |
-|  36 | `while`            | same                                             |
-|  37 | `for`              | same                                             |
-|  38 | `range()`          | `numste()`                                       |
-|  39 | `numste(1, 3)`     | `1, 2, 3`                                        |
-|  40 | `break`            | same                                             |
-|  41 | `continue`         | same                                             |
-|  42 | `pass`             | same                                             |
-|  43 | `for ... else`     | same                                             |
-|  44 | `while ... else`   | same                                             |
-|  45 | `def`              | `func`                                           |
-|  46 | Parameters         | same                                             |
-|  47 | Arguments          | same                                             |
-|  48 | Default arguments  | same                                             |
-|  49 | Keyword arguments  | same                                             |
-|  50 | `lambda`           | doesn't exist, reference a function without `()` |
-|  51 | Recursion          | same                                             |
-|  52 | Local scope        | same                                             |
-|  53 | `class`            | same                                             |
-|  54 | `self`             | handled by FACOH's class system                  |
-|  55 | `__init__`         | doesn't exist, replaced by FACOH initialization  |
-|  56 | Attributes         | same                                             |
-|  57 | Methods            | same                                             |
-|  58 | Inheritance        | same                                             |
-|  59 | Method overriding  | same                                             |
-|  60 | `try`              | same                                             |
-|  61 | `except`           | `caught`                                         |
-|  62 | `else`             | same                                             |
-|  63 | `finally`          | same                                             |
-|  64 | `raise`            | same                                             |
-|  65 | `assert`           | same                                             |
-|  66 | Custom exceptions  | same                                             |
-|  67 | `import`           | `use`                                            |
-|  68 | `from ... import`  | `from ... use`                                   |
-|  69 | `as`               | `var`                                            |
-|  70 | `open()`           | `openfile`                                       |
-|  71 | `with`             | `fileoc`                                         |
-|  72 | File `r`           | same                                             |
-|  73 | File `w`           | same                                             |
-|  74 | File `c`           | same                                             |
-|  75 | File `a`           | same                                             |
-|  76 | File `e`           | edit without rewriting everything                |
-|  77 | `del`              | same                                             |
-|  78 | `len()`            | `length()`                                       |
-|  79 | `type()`           | same                                             |
-|  80 | `list()`           | `lis()`                                          |
-|  81 | `tuple()`          | `tup()`                                          |
-|  82 | `dict()`           | `dic()`                                          |
-|  83 | `set()`            | same                                             |
-|  84 | `enumerate()`      | `ind()`                                          |
-|  85 | `sorted()`         | same                                             |
-|  86 | `reversed()`       | same                                             |
-|  87 | `sum()`            | same                                             |
-|  88 | `min()`            | same                                             |
-|  89 | `max()`            | same                                             |
-|  90 | `abs()`            | same                                             |
-|  91 | `round()`          | same                                             |
-|  92 | `any()`            | same                                             |
-|  93 | `all()`            | same                                             |
-|  94 | `match`            | same                                             |
-|  95 | `case`             | same                                             |
-|  96 | f-strings          | same                                             |
-|  97 | Escape sequences   | same                                             |
-|  98 | Raw strings        | same                                             |
-|  99 | Multiline strings  | same                                             |
-| 100 | `#` comments       | same                                             |
-| 101 | Multiline comments | another `#` on each line                         |
-| 102 | `.py`              | `.fch`                                           |
+|  23 | `!=`               | same                                             |
+|  24 | `<`                | same                                             |
+|  25 | `>`                | same                                             |
+|  26 | `and`              | `also`                                           |
+|  27 | `or`               | `or`                                             |
+|  28 | `not`              | `!`                                              |
+|  29 | `in`               | `in`                                             |
+|  30 | `not in`           | `!in`                                            |
+|  31 | `is`               | `is`                                             |
+|  32 | `is not`           | `!is`                                            |
+|  33 | `if`               | `if operation =`                                 |
+|  34 | `else`             | same                                             |
+|  35 | `while`            | same                                             |
+|  36 | `for`              | same                                             |
+|  37 | `range()`          | `numste()`                                       |
+|  38 | `numste(1, 3)`     | `1, 2, 3`                                        |
+|  39 | `break`            | same                                             |
+|  40 | `continue`         | same                                             |
+|  41 | `pass`             | same                                             |
+|  42 | `for ... else`     | same                                             |
+|  43 | `while ... else`   | same                                             |
+|  44 | `def`              | `func`                                           |
+|  45 | Parameters         | same                                             |
+|  46 | Arguments          | same                                             |
+|  47 | Default arguments  | same                                             |
+|  48 | Keyword arguments  | same                                             |
+|  49 | `lambda`           | doesn't exist, reference a function without `()` |
+|  50 | Recursion          | same                                             |
+|  51 | Local scope        | same                                             |
+|  52 | `class`            | same                                             |
+|  53 | `self`             | handled by FACOH's class system                  |
+|  54 | `__init__`         | doesn't exist, replaced by FACOH initialization  |
+|  55 | Attributes         | same                                             |
+|  56 | Methods            | same                                             |
+|  57 | Inheritance        | same                                             |
+|  58 | Method overriding  | same                                             |
+|  59 | `try`              | same                                             |
+|  60 | `except`           | `caught`                                         |
+|  61 | `else`             | same                                             |
+|  62 | `finally`          | same                                             |
+|  63 | `raise`            | same                                             |
+|  64 | `assert`           | same                                             |
+|  65 | Custom exceptions  | same                                             |
+|  66 | `import`           | `use`                                            |
+|  67 | `from ... import`  | `from ... use`                                   |
+|  68 | `as`               | `var`                                            |
+|  69 | `open()`           | `openfile`                                       |
+|  70 | `with`             | `fileoc`                                         |
+|  71 | File `r`           | same                                             |
+|  72 | File `w`           | same                                             |
+|  73 | File `c`           | same                                             |
+|  74 | File `a`           | same                                             |
+|  75 | File `e`           | edit without rewriting everything                |
+|  76 | `del`              | same                                             |
+|  77 | `len()`            | `length()`                                       |
+|  78 | `type()`           | same                                             |
+|  79 | `list()`           | `lis()`                                          |
+|  80 | `tuple()`          | `tup()`                                          |
+|  81 | `dict()`           | `dic()`                                          |
+|  82 | `set()`            | same                                             |
+|  83 | `enumerate()`      | `ind()`                                          |
+|  84 | `sorted()`         | same                                             |
+|  85 | `reversed()`       | same                                             |
+|  86 | `sum()`            | same                                             |
+|  87 | `min()`            | same                                             |
+|  88 | `max()`            | same                                             |
+|  89 | `abs()`            | same                                             |
+|  90 | `round()`          | same                                             |
+|  91 | `any()`            | same                                             |
+|  92 | `all()`            | same                                             |
+|  93 | `match`            | same                                             |
+|  94 | `case`             | same                                             |
+|  95 | f-strings          | same                                             |
+|  96 | Escape sequences   | same                                             |
+|  97 | Raw strings        | same                                             |
+|  98 | Multiline strings  | same                                             |
+|  99 | `#` comments       | same                                             |
+| 100 | Multiline comments | another `#` on each line                         |
+| 101 | `.py`              | `.fch`                                           |
 
 # Development
 
