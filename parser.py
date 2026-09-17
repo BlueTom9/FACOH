@@ -22,6 +22,8 @@ class Parser:
                             "Equal", "NotEqual", "Also", "Or", "Is", "IsNot", "In", "NotIn", "Not", "Semicolon", "Comma", "LeftParen", "RightParen", "LeftBrace", "RightBrace", "LeftBracket", "RightBracket"]
         self.function_names = []
         self.function_parameters = []
+        self.errors = ["MissingSemicolonError", "IndentationError", "MissingIdentifier", "MissingParameterError", "NamingError", "MissingParamaters",
+                       "MissingParamater", "MissingClosingParenthesis", "MissingClosingParen", "MissingExpression", "MissingClosingBracket", "MissingEquals", "MissingClosingBrace"]
 
     def peek(self):
         try:
@@ -96,11 +98,15 @@ class Parser:
 
     def parse_for(self):
         self.advance()
-        if self.expect("Identifier", "MissingIdentifier"):
-            if self.expect("In", "MissingParameterError"):
-                self.parse_expression()
-                if self.expect("Semicolon", "MissingSemicolonError"):
-                    self.parse_block()
+        if self.expect("Identifier", "MissingIdentifier") and self.expect("In", "MissingParameterError"):
+            self.parse_expression()
+            if self.expect("Semicolon", "MissingSemicolonError"):
+                self.parse_block()
+            current_token = self.peek()
+            if current_token and current_token[1] == "else":
+                self.advance()
+                self.expect("Semicolon", "MissingSemicolonError")
+                self.parse_block()
 
     def parse_func(self):
         self.advance()
@@ -146,10 +152,46 @@ class Parser:
             })
 
     def parse_try(self):
-        pass
+        self.advance()
+        if self.expect("Semicolon", "MissingSemicolonError"):
+            self.parse_block()
+            current_token = self.peek()
+            while current_token[1] == "caught":
+                self.advance()
+                current_token = self.peek()
+                if current_token[0] == "Identifier":
+                    self.advance()
+                    current_token = self.peek()
+
+                if current_token[1] == "var":
+                    self.advance()
+                    self.expect("Identifier", "MissingIdentifier")
+                self.expect("Semicolon", "MissingSemicolonError")
+                self.parse_block()
+                current_token = self.peek()
+            if current_token[1] == "else":
+                self.advance()
+                self.expect("Semicolon", "MissingSemicolonError")
+                self.parse_block()
+                current_token = self.peek()
+
+            if current_token[1] == "finally":
+                self.advance()
+                self.expect("Semicolon", "MissingSemicolonError")
+                self.parse_block()
 
     def parse_fileoc(self):
-        pass
+        self.advance()
+        self.parse_expression()
+
+        current_token = self.peek()
+        if current_token[1] == "var":
+            self.advance()
+            self.expect("Identifier", "MissingIdentifier")
+
+        self.expect("Semicolon", "MissingSemicolonError")
+        self.parse_block()
+        
 
     def parse_simple_statement(self):
         current_token = self.peek()
@@ -165,7 +207,36 @@ class Parser:
                 self.parse_expression()
 
     def parse_use_from_var(self):
-        pass
+        current_token = self.peek()
+
+        if current_token[1] == "use":
+            self.advance()
+            self.expect("Identifier", "MissingIdentifier")
+
+            current_token = self.peek()
+            if current_token[1] == "var":
+                self.advance()
+                self.expect("Identifier", "MissingIdentifier")
+
+            self.expect("Semicolon", "MissingSemicolonError")
+
+        elif current_token[1] == "from":
+            self.advance()
+            self.expect("Identifier", "MissingIdentifier")
+            self.expect("Identifier", "MissingIdentifier")
+
+            current_token = self.peek()
+            if current_token[1] == "var":
+                self.advance()
+                self.expect("Identifier", "MissingIdentifier")
+
+            self.expect("Semicolon", "MissingSemicolonError")
+
+        elif current_token[1] == "var":
+            self.advance()
+            self.expect("Identifier", "MissingIdentifier")
+            self.expect("Equal", "MissingEquals")
+            self.parse_expression()
 
     def parse_primary(self):
         current_token = self.peek()
