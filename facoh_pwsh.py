@@ -12,7 +12,8 @@ while True:
             if extension == ".fch":
                 with open(f"C:\\dev\\facoh_files\\{file}") as file:
                     contents = file.read()
-                facoh_interpreter.run(contents)
+                facoh_interpreter_class = facoh_interpreter(contents)
+                facoh_interpreter_class.run()
             else:
                 print("File is not a facoh file")
         else:

@@ -78,7 +78,7 @@ FACOH or "Flickz's Advanced Computational Operations Hub" is a personal programm
 |  70 | `with`             | `fileoc`                                         |
 |  71 | File `r`           | same                                             |
 |  72 | File `w`           | same                                             |
-|  73 | File `c`           | same                                             |
+|  73 | File `x`           | File `c`                                         |
 |  74 | File `a`           | same                                             |
 |  75 | File `e`           | edit without rewriting everything                |
 |  76 | `del`              | same                                             |
