@@ -57,33 +57,32 @@ class Parser:
     def parse_statement(self):
         current_token = self.peek()
         if current_token[1] == "if":
-            self.parse_if()
+            return self.parse_if()
         elif current_token[1] == "while":
-            self.parse_while()
+            return self.parse_while()
         elif current_token[1] == "for":
-            self.parse_for()
+            return self.parse_for()
         elif current_token[1] == "func":
-            self.parse_func()
+            return self.parse_func()
         elif current_token[1] == "try":
-            self.parse_try()
+            return self.parse_try()
         elif current_token[1] == "fileoc":
-            self.parse_fileoc()
+            return self.parse_fileoc()
         elif current_token[1] == "use" or current_token[1] == "from" or current_token[1] == "var":
-            self.parse_use_from_var()
+            return self.parse_use_from_var()
         elif current_token[1] in ["break", "del", "pass", "return"]:
-            self.parse_simple_statement()
+            return self.parse_simple_statement()
         elif current_token[0] in [
             "String", "Number", "Boolean", "Float", "Identifier",
             "LeftParen", "LeftBracket", "LeftBrace", "Minus", "Not"
         ]:
-            self.parse_expression(True)
+            return self.parse_expression(True)
 
     def parse_if(self):
         self.advance()
         self.parse_expression()
         self.expect("Semicolon", "MissingSemicolonError")
         self.parse_block()
-
         current_token = self.peek()
         if current_token and current_token[1] == "else":
             self.advance()
@@ -92,9 +91,14 @@ class Parser:
 
     def parse_while(self):
         self.advance()
-        self.parse_expression()
+        condition = self.parse_expression()
         self.expect("Semicolon", "MissingSemicolonError")
-        self.parse_block()
+        block = self.parse_block()
+        return {
+            "type": "While",
+            "condition": condition,
+            "block": block
+        }
 
     def parse_for(self):
         self.advance()
@@ -207,11 +211,9 @@ class Parser:
 
     def parse_use_from_var(self):
         current_token = self.peek()
-
         if current_token[1] == "use":
             self.advance()
             self.expect("Identifier", "MissingIdentifier")
-
             current_token = self.peek()
             if current_token[1] == "var":
                 self.advance()
@@ -223,12 +225,10 @@ class Parser:
             self.advance()
             self.expect("Identifier", "MissingIdentifier")
             self.expect("Identifier", "MissingIdentifier")
-
             current_token = self.peek()
             if current_token[1] == "var":
                 self.advance()
                 self.expect("Identifier", "MissingIdentifier")
-
             self.expect("Semicolon", "MissingSemicolonError")
 
         elif current_token[1] == "var":
@@ -241,7 +241,10 @@ class Parser:
         current_token = self.peek()
         if current_token[0] in ["String", "Number", "Float", "Boolean"]:
             self.advance()
-            return current_token
+            return {
+                "type": "literal",
+                "value": current_token[1]
+            }
         elif current_token[0] == "Identifier":
             return self.parse_identifier(current_token, allow_assignment)
         elif current_token[0] == "LeftParen":
@@ -256,7 +259,10 @@ class Parser:
             elements = []
             if current_token[0] == "RightBracket":
                 self.advance()
-                return elements
+                return {
+                    "type": "List",
+                    "elements": elements
+                }
             elements.append(self.parse_expression())
             current_token = self.peek()
 
@@ -265,7 +271,10 @@ class Parser:
                 elements.append(self.parse_expression())
                 current_token = self.peek()
             if self.expect("RightBracket", "MissingClosingBracket"):
-                return elements
+                return {
+                    "type": "List",
+                    "elements": elements
+                }
 
         elif current_token[0] == "LeftBrace":
             self.advance()
@@ -273,7 +282,10 @@ class Parser:
             dictionary = {}
             if current_token[0] == "RightBrace":
                 self.advance()
-                return dictionary
+                return {
+                    "type": "Dictionary",
+                    "contents": dictionary
+                }
             key = self.parse_key()
             self.expect("Equal", "MissingEquals")
             value = self.parse_value()
@@ -289,7 +301,10 @@ class Parser:
                 current_token = self.peek()
 
             if self.expect("RightBrace", "MissingClosingBrace"):
-                return dictionary
+                return {
+                    "type": "Dictionary",
+                    "contents": dictionary
+                }
 
         else:
             self.diagnostics.append(Diagnostic(
@@ -315,9 +330,16 @@ class Parser:
         left = self.parse_unary(allow_assignment)
         current_token = self.peek()
         if current_token[0] == "Power":
+            operator = current_token[1]
             self.advance()
             right = self.parse_power(allow_assignment)
-            return left + "**" + right
+            left = {
+                "type": "BinaryOperation",
+                "operator": operator,
+                "left": left,
+                "right": right
+            }
+            return left
         else:
             return left
 
@@ -325,9 +347,15 @@ class Parser:
         left = self.parse_power(allow_assignment)
         current_token = self.peek()
         while current_token[0] in ["Multiply", "Divide", "Modulo"]:
+            operator = current_token[1]
             self.advance()
             right = self.parse_power(allow_assignment)
-            left = left + current_token[1] + right
+            left = {
+                "type": "BinaryOperation",
+                "operator": operator,
+                "left": left,
+                "right": right
+            }
             current_token = self.peek()
         return left
 
@@ -335,9 +363,15 @@ class Parser:
         left = self.parse_multiplication(allow_assignment)
         current_token = self.peek()
         while current_token[0] in ["Plus", "Minus"]:
+            operator = current_token[1]
             self.advance()
             right = self.parse_multiplication(allow_assignment)
-            left = left + current_token[1] + right
+            left = {
+                "type": "BinaryOperation",
+                "operator": operator,
+                "left": left,
+                "right": right
+            }
             current_token = self.peek()
         return left
 
@@ -345,9 +379,16 @@ class Parser:
         left = self.parse_addition(allow_assignment)
         current_token = self.peek()
         if current_token[0] in ["Equal", "NotEqual", "Smaller", "Bigger", "In", "NotIn", "Is", "IsNot"]:
+            operator = current_token[1]
             self.advance()
             right = self.parse_addition(allow_assignment)
-            return left + current_token[1] + right
+            left = {
+                "type": "BinaryOperation",
+                "operator": operator,
+                "left": left,
+                "right": right
+            }
+            return left
         else:
             return left
 
@@ -355,20 +396,32 @@ class Parser:
         left = self.parse_comparison(allow_assignment)
         current_token = self.peek()
         while current_token[0] == "Also":
+            operator = current_token[1]
             self.advance()
             right = self.parse_comparison(allow_assignment)
-            left = left + current_token[1] + right
             current_token = self.peek()
+            left = {
+                "type": "BinaryOperation",
+                "operator": operator,
+                "left": left,
+                "right": right
+            }
         return left
 
     def parse_or(self, allow_assignment=False):
         left = self.parse_also(allow_assignment)
         current_token = self.peek()
         while current_token[0] == "Or":
+            operator = current_token[1]
             self.advance()
             right = self.parse_also(allow_assignment)
-            left = left + current_token[1] + right
             current_token = self.peek()
+            left = {
+                "type": "BinaryOperation",
+                "operator": operator,
+                "left": left,
+                "right": right
+            }
         return left
 
     def parse_expression(self, allow_assignment=False):
@@ -376,14 +429,16 @@ class Parser:
 
     def parse_block(self):
         if self.expect("Indent", "IndentationError"):
+            statements = []
             current_token = self.peek()
             while current_token[0] != "Dedent":
                 if current_token[0] != "Newline":
-                    self.parse_statement()
+                    statements.append(self.parse_statement())
                     current_token = self.peek()
                 else:
                     self.advance()
             self.advance()
+            return statements
 
     def parse_identifier(self, identifier, allow_assignment=False):
         self.advance()
@@ -404,7 +459,7 @@ class Parser:
                 self.expect("RightParen", "MissingClosingParen")
             return {
                 "type": "Call",
-                "name": identifier,
+                "name": identifier[1],
                 "arguments": arguments
             }
 
@@ -416,25 +471,28 @@ class Parser:
                 self.expect("RightBracket", "MissingClosingBracket")
                 return {
                     "type": "Slice",
-                    "object": identifier,
+                    "object": identifier[1],
                     "start": index,
                     "end": end
                 }
             self.expect("RightBracket", "MissingClosingBracket")
             return {
                 "type": "Index",
-                "object": identifier,
+                "object": identifier[1],
                 "index": index
             }
         elif current_token[0] == "Equal" and allow_assignment:
             self.advance()
             expression = self.parse_expression()
             return {"type": "Assignment",
-                    "name": identifier,
+                    "name": identifier[1],
                     "value": expression
                     }
         else:
-            return identifier
+            return {
+                "type": "Variable",
+                "name": identifier[1]
+            }
 
     def parse_program(self):
         while not self.eof_reached:
