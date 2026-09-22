@@ -31,6 +31,7 @@ class Parser:
             return [token.type, token.value, token.line, token.column]
         except IndexError:
             self.eof_reached = True
+            return ["EOF", "", 0, 0]
 
     def advance(self):
         current_token = self.peek()
@@ -111,6 +112,8 @@ class Parser:
         self.advance()
         else_block = None
         variable = self.peek()[1]
+        iterable = None
+        block = []
         if self.expect("Identifier", "MissingIdentifier") and self.expect("In", "MissingParameterError"):
             iterable = self.parse_expression()
             if self.expect("Semicolon", "MissingSemicolonError"):
@@ -182,6 +185,7 @@ class Parser:
         self.advance()
         else_block = None
         finally_block = None
+        block = []
         caught_vars = []
         caught_blocks = []
         if self.expect("Semicolon", "MissingSemicolonError"):
@@ -264,7 +268,7 @@ class Parser:
             value = None
             self.advance()
             current_token = self.peek()
-            if current_token[0] not in ["Newline", "Indent", "Dedent"]:
+            if current_token[0] not in ["Newline", "Indent", "Dedent", "EOF"]:
                 value = self.parse_expression()
             return {
                 "type": "return",
@@ -299,13 +303,31 @@ class Parser:
                 var_tab = self.peek()[1]
                 self.expect("Identifier", "MissingIdentifier")
             self.expect("Semicolon", "MissingSemicolonError")
-        
+
         return {
             "type": "use",
             "from": from_tab,
             "name": name,
             "var": var_tab
         }
+
+    def parse_key(self):
+        current_token = self.peek()
+        if current_token[0] in ["String", "Number", "Boolean", "Float", "Identifier"]:
+            self.advance()
+            return current_token[1]
+        self.diagnostics.append(Diagnostic(
+            "MissingExpression",
+            f"Invalid dictionary key in line {current_token[2]} column {current_token[3]}",
+            current_token[2],
+            current_token[3],
+            7,
+            len(current_token[1])
+        ))
+        return None
+
+    def parse_value(self):
+        return self.parse_expression()
 
     def parse_primary(self, allow_assignment=False):
         current_token = self.peek()
@@ -505,14 +527,17 @@ class Parser:
         if self.expect("Indent", "IndentationError"):
             statements = []
             current_token = self.peek()
-            while current_token[0] != "Dedent":
+            while current_token[0] not in ["Dedent", "EOF"]:
                 if current_token[0] != "Newline":
                     statements.append(self.parse_statement())
                     current_token = self.peek()
                 else:
                     self.advance()
-            self.advance()
+                    current_token = self.peek()
+            if current_token[0] == "Dedent":
+                self.advance()
             return statements
+        return []
 
     def parse_identifier(self, identifier, allow_assignment=False):
         self.advance()
@@ -572,5 +597,7 @@ class Parser:
         result = []
         while not self.eof_reached:
             if not self.match("Newline"):
-                result.append(self.parse_statement())
+                statement = self.parse_statement()
+                if statement is not None:
+                    result.append(statement)
         return result
