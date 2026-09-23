@@ -69,7 +69,7 @@ class Parser:
             return self.parse_try()
         elif current_token[1] == "fileoc":
             return self.parse_fileoc()
-        elif current_token[1] == "use" or current_token[1] == "from" or current_token[1] == "var":
+        elif current_token[1] == "use" or current_token[1] == "from":
             return self.parse_use_from_var()
         elif current_token[1] in ["break", "del", "pass", "return"]:
             return self.parse_simple_statement()
@@ -78,6 +78,8 @@ class Parser:
             "LeftParen", "LeftBracket", "LeftBrace", "Minus", "Not"
         ]:
             return self.parse_expression(True)
+        else:
+            self.advance()
 
     def parse_if(self):
         self.advance()
@@ -85,6 +87,7 @@ class Parser:
         condition = self.parse_expression()
         self.expect("Semicolon", "MissingSemicolonError")
         block = self.parse_block()
+        self.match("Newline")
         current_token = self.peek()
         if current_token and current_token[1] == "else":
             self.advance()
@@ -186,26 +189,36 @@ class Parser:
         else_block = None
         finally_block = None
         block = []
-        caught_vars = []
-        caught_blocks = []
+        caughts = {}
         if self.expect("Semicolon", "MissingSemicolonError"):
             block = self.parse_block()
+            self.match("Newline")
             current_token = self.peek()
+            caught_number = 0
             while current_token[1] == "caught":
                 self.advance()
+                caught_type = None
+                caught_var = None
                 current_token = self.peek()
                 if current_token[0] == "Identifier":
+                    caught_type = current_token[1]
                     self.advance()
                     current_token = self.peek()
 
                 if current_token[1] == "var":
                     self.advance()
-                    caught_vars.append(self.peek()[1])
+                    current_token = self.peek()
+                    caught_var = current_token[1]
                     self.expect("Identifier", "MissingIdentifier")
-                else:
-                    caught_vars.append(None)
+
                 self.expect("Semicolon", "MissingSemicolonError")
-                caught_blocks.append(self.parse_block())
+                caught_block = self.parse_block()
+                caughts[caught_number] = {
+                    "type": caught_type,
+                    "block": caught_block,
+                    "var": caught_var
+                }
+                caught_number += 1
                 current_token = self.peek()
             if current_token[1] == "else":
                 self.advance()
@@ -217,12 +230,6 @@ class Parser:
                 self.advance()
                 self.expect("Semicolon", "MissingSemicolonError")
                 finally_block = self.parse_block()
-        caughts = {}
-        for number, i in enumerate(caught_blocks):
-            caughts[number] = {
-                "block": i,
-                "var": caught_vars[number]
-            }
 
         return {
             "type": "try",
@@ -274,7 +281,6 @@ class Parser:
                 "type": "return",
                 "value": value
             }
-            
 
     def parse_use_from_var(self):
         from_tab = None
@@ -414,13 +420,11 @@ class Parser:
             self.advance()
             expression = self.parse_unary(allow_assignment)
             return {
-                    "type": "UnaryOperation",
-                    "operator": current_token[1],
-                    "operand": expression
-                }
-        else:
-            result = self.parse_primary(allow_assignment)
-            return result
+                "type": "UnaryOperation",
+                "operator": current_token[1],
+                "operand": expression
+            }
+        return self.parse_primary(allow_assignment)
 
     def parse_power(self, allow_assignment=False):
         left = self.parse_unary(allow_assignment)
@@ -429,15 +433,14 @@ class Parser:
             operator = current_token[1]
             self.advance()
             right = self.parse_power(allow_assignment)
-            left = {
+            return {
                 "type": "BinaryOperation",
                 "operator": operator,
                 "left": left,
                 "right": right
             }
-            return left
-        else:
-            return left
+
+        return left
 
     def parse_multiplication(self, allow_assignment=False):
         left = self.parse_power(allow_assignment)
@@ -485,8 +488,8 @@ class Parser:
                 "right": right
             }
             return left
-        else:
-            return left
+
+        return left
 
     def parse_also(self, allow_assignment=False):
         left = self.parse_comparison(allow_assignment)
@@ -583,15 +586,17 @@ class Parser:
         elif current_token[0] == "Equal" and allow_assignment:
             self.advance()
             expression = self.parse_expression()
-            return {"type": "Assignment",
-                    "name": identifier[1],
-                    "value": expression
-                    }
-        else:
+
             return {
-                "type": "Variable",
-                "name": identifier[1]
+                "type": "Assignment",
+                "name": identifier[1],
+                "value": expression
             }
+
+        return {
+            "type": "Variable",
+            "name": identifier[1]
+        }
 
     def parse_program(self):
         result = []
@@ -600,4 +605,8 @@ class Parser:
                 statement = self.parse_statement()
                 if statement is not None:
                     result.append(statement)
-        return result
+
+        if self.mode == "Diagnostics + Output":
+            return [result, self.diagnostics]
+        else:
+            return self.diagnostics
