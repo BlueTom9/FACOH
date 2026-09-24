@@ -122,3 +122,8 @@ Current parts:
 The long term plan is to make a compiler for FACOH after the interpreter is finished.
 
 FACOH files use the `.fch` extension.
+
+To run a FACOH file download the Interpreter, Lexer, Parser and PWSH from this repo: https://github.com/BlueTom9/FACOH.git
+Then when you are ready to run a file navigate to the folder where the thw powershell is and run this in the powershell/terminal: `python facoh_pwsh.py` then navigate to the folder of your file and run this: `run (file name)`
+
+This projects Icon pack uses Seti's icons + Facoh icon
