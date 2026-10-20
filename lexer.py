@@ -1,18 +1,3 @@
-class TokenTypes:
-    def __init__(self):
-        self.structure_types = ["Indent", "Dedent", "Newline"]
-        self.value_types = ["String", "Number",
-                            "Boolean", "Float", "Identifier"]
-        self.arithmetic_types = ["Plus", "Minus",
-                                 "Multiply", "Divide", "Power", "Modulo"]
-        self.comparison_types = ["Bigger", "Smaller", "Equal",
-                                 "NotEqual", "Also", "Or", "Is", "IsNot",
-                                 "In", "NotIn", "Not"]
-        self.syntax_types = ["Semicolon", "Comma", "LeftParen", "RightParen",
-                             "LeftBrace", "RightBrace", "LeftBracket",
-                             "RightBracket"]
-
-
 class Token:
     def __init__(self, token_type, value, line, column):
         self.type = token_type
@@ -54,88 +39,98 @@ class Lexer:
         self.valid_syntax_chars = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r",
                                    "s", "t", "u", "v", "w", "x", "y", "z", 1, 2, 3, 4, 5, 6, 7, 8, 9, "#", "'", '"', "*", "/", "-", "+", "%"]
 
-    def tokenize_line(self, line):
+    def tokenize_line(self, line, line_number=None):
+        """Tokenize one physical source line, stopping at an unquoted # comment."""
         result = []
-        current = ""
-        current_start_column = None
-        paren = ["(", ")", "[", "]", "{", "}", ",", ";", "-"]
-        inside_string = False
-        opening_quote = None
-        current_column = 0
-        while current_column < len(line):
-            character = line[current_column]
-            column = current_column + 1
-            try:
-                if character == '"':
-                    if not inside_string:
-                        inside_string = True
-                        opening_quote = '"'
-                        current_start_column = column
-                    else:
-                        if character == opening_quote:
-                            result.append(
-                                (opening_quote + current + opening_quote, current_start_column))
-                            current = ""
-                            current_start_column = None
-                            inside_string = False
-                            opening_quote = None
-                elif character == "'":
-                    if not inside_string:
-                        inside_string = True
-                        opening_quote = "'"
-                        current_start_column = column
-                    else:
-                        if character == opening_quote:
-                            result.append(
-                                (opening_quote + current + opening_quote, current_start_column))
-                            current = ""
-                            current_start_column = None
-                            inside_string = False
-                            opening_quote = None
-                elif inside_string:
-                    current += character
-                elif character == "!":
-                    if current:
-                        result.append((current, current_start_column))
-                        current = ""
-                        current_start_column = None
-                    if line[current_column:current_column + 3] == "!is":
-                        result.append(("!is", column))
-                        current_column += 3
+        line_number = self.line if line_number is None else line_number
+        i = 0
+        n = len(line)
+        operators = ("!is", "!in", "!=", "==", "<=", ">=", "**")
+        single_tokens = set("()[]{} ,;.+-*/%=<>!")
+
+        while i < n:
+            ch = line[i]
+            column = i + 1
+            if ch in " \t\r\n":
+                i += 1
+                continue
+            if ch == "#":
+                # A comment consumes the rest of this line, but not the newline token.
+                break
+
+            # f/F-prefixed strings and ordinary quoted strings.
+            prefix = ""
+            quote_index = i
+            if ch in "fF" and i + 1 < n and line[i + 1] in "\"'":
+                prefix = ch
+                quote_index = i + 1
+            if line[quote_index] in "\"'":
+                quote = line[quote_index]
+                start_column = column
+                j = quote_index + 1
+                value_chars = []
+                closed = False
+                while j < n:
+                    current = line[j]
+                    if current == "\\" and j + 1 < n:
+                        value_chars.append(current)
+                        value_chars.append(line[j + 1])
+                        j += 2
                         continue
-                    elif line[current_column:current_column + 3] == "!in":
-                        result.append(("!in", column))
-                        current_column += 3
-                        continue
-                    elif line[current_column:current_column + 2] == "!=":
-                        result.append(("!=", column))
-                        current_column += 2
-                        continue
-                    else:
-                        result.append(("!", column))
-                elif character in paren:
-                    if current:
-                        result.append((current, current_start_column))
-                        current = ""
-                        current_start_column = None
-                    result.append((character, column))
-                elif character == " " or character == "\n" or character == "\t":
-                    if current:
-                        result.append((current, current_start_column))
-                        current = ""
-                        current_start_column = None
+                    if current == quote:
+                        closed = True
+                        j += 1
+                        break
+                    if current in "\r\n":
+                        break
+                    value_chars.append(current)
+                    j += 1
+                token_value = prefix + quote + "".join(value_chars)
+                if closed:
+                    token_value += quote
                 else:
-                    if current == "":
-                        current_start_column = column
-                    current += character
-            except ValueError:
-                pass
-            current_column += 1
-        if current:
-            result.append((current, current_start_column))
-        if inside_string:
-            self.diagnostics.append(Diagnostic(
-                "UnclosedStringError", f"Unclosed string found Line {self.line} column {current_start_column}", self.line, current_start_column, 8, len(current) + 1))
+                    self.diagnostics.append(Diagnostic(
+                        "UnclosedStringError",
+                        f"Unclosed string found Line {line_number} column {start_column}",
+                        line_number, start_column, 8, max(1, j - i)
+                    ))
+                result.append((token_value, start_column))
+                i = j
+                continue
+
+            # Longest operators first so x!=y and x**2 work without spaces.
+            matched = next((op for op in operators if line.startswith(op, i)), None)
+            if matched:
+                result.append((matched, column))
+                i += len(matched)
+                continue
+
+            if ch in single_tokens:
+                if ch != " ":
+                    result.append((ch, column))
+                i += 1
+                continue
+
+            # Keep decimal numbers intact while treating other dots as path/member separators.
+            if ch.isdigit():
+                j = i + 1
+                while j < n and line[j].isdigit():
+                    j += 1
+                if j + 1 < n and line[j] == "." and line[j + 1].isdigit():
+                    j += 1
+                    while j < n and line[j].isdigit():
+                        j += 1
+                result.append((line[i:j], column))
+                i = j
+                continue
+
+            # Identifiers and keywords. Slash/dot are separate tokens for import paths.
+            j = i + 1
+            while j < n and line[j] not in " \t\r\n#()[]{} ,;.+-*/%=<>!\"'":
+                j += 1
+            result.append((line[i:j], column))
+            i = j
+
         return result
 
     def lex(self):
@@ -152,35 +147,40 @@ class Lexer:
                 else:
                     break
 
+            # Empty and comment-only lines do not open or close indentation blocks.
+            stripped = source_line.strip()
+            is_ignored_line = not stripped or stripped.startswith("#")
             valid_indentation = self.spaces % 4 == 0
-            if not valid_indentation and source_line.strip():
-                self.diagnostics.append(Diagnostic(
-                    "IndentationError", f"Invalid indentation found Line {token_line} column {self.spaces + self.tabs + 1}", token_line, self.spaces + self.tabs + 1, 8, 1))
-
-            indentation_level = self.tabs + (self.spaces // 4)
-            if valid_indentation and indentation_level > self.indentation_state:
-                while self.indentation_state < indentation_level:
-                    self.indentation_state += 1
-                    if self.indentation_state not in self.indentation_levels:
-                        self.indentation_levels.append(
-                            self.indentation_state)
-                    self.tokens.append(
-                        Token("Indent", "\t", token_line, self.spaces + self.tabs + 1))
-            elif valid_indentation and indentation_level < self.indentation_state:
-                if indentation_level not in self.indentation_levels:
+            # Newlines inside (), [] and {} continue the current expression;
+            # their leading whitespace is formatting, not FACOH block indentation.
+            inside_delimited_expression = bool(self.delimiter_stack)
+            if not is_ignored_line and not inside_delimited_expression:
+                if not valid_indentation:
                     self.diagnostics.append(Diagnostic(
                         "IndentationError", f"Invalid indentation found Line {token_line} column {self.spaces + self.tabs + 1}", token_line, self.spaces + self.tabs + 1, 8, 1))
-                else:
-                    while self.indentation_state > indentation_level:
-                        self.indentation_state -= 1
-                        self.tokens.append(
-                            Token("Dedent", "-\t", token_line, self.spaces + self.tabs + 1))
+
+                indentation_level = self.tabs + (self.spaces // 4)
+                if valid_indentation and indentation_level > self.indentation_state:
+                    while self.indentation_state < indentation_level:
+                        self.indentation_state += 1
+                        if self.indentation_state not in self.indentation_levels:
+                            self.indentation_levels.append(self.indentation_state)
+                        self.tokens.append(Token("Indent", "\t", token_line, self.spaces + self.tabs + 1))
+                elif valid_indentation and indentation_level < self.indentation_state:
+                    if indentation_level not in self.indentation_levels:
+                        self.diagnostics.append(Diagnostic(
+                            "IndentationError", f"Invalid indentation found Line {token_line} column {self.spaces + self.tabs + 1}", token_line, self.spaces + self.tabs + 1, 8, 1))
+                    else:
+                        while self.indentation_state > indentation_level:
+                            self.indentation_state -= 1
+                            self.tokens.append(Token("Dedent", "-\t", token_line, self.spaces + self.tabs + 1))
 
             self.at_line_start = True
             for character in source_line:
                 if character == "\n":
-                    self.tokens.append(
-                        Token("Newline", "\n", token_line, self.column))
+                    if not is_ignored_line and not self.delimiter_stack:
+                        self.tokens.append(
+                            Token("Newline", "\n", token_line, self.column))
                     self.line += 1
                     self.column = 1
                     self.at_line_start = True
@@ -193,7 +193,7 @@ class Lexer:
                     self.column += 1
                 self.position += 1
 
-            tokenized_line = self.tokenize_line(source_line)
+            tokenized_line = self.tokenize_line(source_line, token_line)
             for value, column in tokenized_line:
                 if value in ["==", "<=", ">="]:
                     self.diagnostics.append(Diagnostic(
@@ -251,6 +251,10 @@ class Lexer:
                         self.tokens.append(
                             Token("RightBracket", value, token_line, column))
 
+                elif value == ".":
+                    self.tokens.append(
+                        Token("Dot", value, token_line, column))
+
                 elif value == ",":
                     self.tokens.append(
                         Token("Comma", value, token_line, column))
@@ -258,6 +262,14 @@ class Lexer:
                 elif value == ";":
                     self.tokens.append(
                         Token("Semicolon", value, token_line, column))
+
+                elif (
+                    len(value) > 1
+                    and value[0] in ("f", "F")
+                    and value[1] in ("'", '"')
+                ):
+                    self.tokens.append(
+                        Token("FString", value, token_line, column))
 
                 elif "\"" in value or "'" in value:
                     self.tokens.append(
@@ -360,3 +372,5 @@ class Lexer:
             return [self.tokens, self.diagnostics]
         else:
             return self.diagnostics
+
+

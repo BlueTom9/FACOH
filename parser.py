@@ -9,19 +9,22 @@ class Diagnostic:
 
 
 class Parser:
-    def __init__(self, lexer_output, sender):
+    def __init__(self, lexer_output, sender, source=""):
         self.tokens = lexer_output[0]
         self.diagnostics = lexer_output[1]
+        self.source = source
         if sender == "Interpreter":
             self.mode = "Diagnostics + Output"
         else:
             self.mode = "Diagnostic"
         self.position = 0
         self.eof_reached = False
-        self.token_types = ["Indent", "Dedent", "Newline", "String", "Number", "Boolean", "Float", "Identifier", "Plus", "Minus", "Multiply", "Divide", "Power", "Modulo", "Bigger", "Smaller",
-                            "Equal", "NotEqual", "Also", "Or", "Is", "IsNot", "In", "NotIn", "Not", "Semicolon", "Comma", "LeftParen", "RightParen", "LeftBrace", "RightBrace", "LeftBracket", "RightBracket"]
+        self.token_types = ["Indent", "Dedent", "Newline", "String", "FString", "Number", "Boolean", "Float", "Identifier", "Plus", "Minus", "Multiply", "Divide", "Power", "Modulo", "Bigger", "Smaller",
+                            "Equal", "NotEqual", "Also", "Or", "Is", "IsNot", "In", "NotIn", "Not", "Semicolon", "Dot", "Comma", "LeftParen", "RightParen", "LeftBrace", "RightBrace", "LeftBracket", "RightBracket"]
         self.function_names = []
         self.function_parameters = []
+        self.obj_names = []
+        self.obj_inheritance = []
         self.errors = ["MissingSemicolonError", "IndentationError", "MissingIdentifier", "MissingParameterError", "NamingError", "MissingParamaters",
                        "MissingParamater", "MissingClosingParenthesis", "MissingClosingParen", "MissingExpression", "MissingClosingBracket", "MissingEquals", "MissingClosingBrace"]
 
@@ -31,7 +34,10 @@ class Parser:
             return [token.type, token.value, token.line, token.column]
         except IndexError:
             self.eof_reached = True
-            return ["EOF", "", 0, 0]
+            line = self.source.count("\n") + 1
+            last_newline = self.source.rfind("\n")
+            column = len(self.source) - last_newline
+            return ["EOF", "", line, column]
 
     def advance(self):
         current_token = self.peek()
@@ -57,29 +63,40 @@ class Parser:
 
     def parse_statement(self):
         current_token = self.peek()
-        if current_token[1] == "if":
-            return self.parse_if()
+        line = current_token[2]
+        column = current_token[3]
+        if current_token[1] == "obj":
+            statement = self.parse_obj()
+        elif current_token[1] == "if":
+            statement = self.parse_if()
         elif current_token[1] == "while":
-            return self.parse_while()
+            statement = self.parse_while()
         elif current_token[1] == "for":
-            return self.parse_for()
+            statement = self.parse_for()
         elif current_token[1] == "func":
-            return self.parse_func()
+            statement = self.parse_func()
         elif current_token[1] == "try":
-            return self.parse_try()
+            statement = self.parse_try()
         elif current_token[1] == "fileoc":
-            return self.parse_fileoc()
+            statement = self.parse_fileoc()
         elif current_token[1] == "use" or current_token[1] == "from":
-            return self.parse_use_from_var()
-        elif current_token[1] in ["break", "del", "pass", "return"]:
-            return self.parse_simple_statement()
+            statement = self.parse_use_from_var()
+        elif current_token[1] in ["break", "del", "pass", "return", "throw"]:
+            statement = self.parse_simple_statement()
         elif current_token[0] in [
-            "String", "Number", "Boolean", "Float", "Identifier",
+            "String", "FString", "Number", "Boolean", "Float", "Identifier",
             "LeftParen", "LeftBracket", "LeftBrace", "Minus", "Not"
         ]:
-            return self.parse_expression(True)
+            statement = self.parse_expression(True)
+            self.match("Semicolon")
         else:
             self.advance()
+            return None
+        if statement is not None:
+            statement["line"] = line
+            statement["column"] = column
+
+        return statement
 
     def parse_if(self):
         self.advance()
@@ -100,15 +117,152 @@ class Parser:
             "else_block": else_block
         }
 
+    def parse_obj(self):
+        self.advance()
+        obj_name = self.parse_obj_name()
+
+        current_token = self.peek()
+        if current_token[0] == "LeftParen":
+            inheritance = self.parse_obj_inheritance(obj_name)
+        else:
+            inheritance = None
+
+        self.expect("Semicolon", "MissingSemicolonError")
+
+        initialization = self.parse_initialization()
+        methods = self.parse_methods()
+
+        return {
+            "type": "Obj",
+            "name": obj_name,
+            "parent": inheritance,
+            "initialization": initialization,
+            "methods": methods
+        }
+
+    def parse_obj_inheritance(self, name):
+        self.advance()
+
+        parent = self.peek()[1]
+        self.expect("Identifier", "MissingIdentifier")
+        self.expect("RightParen", "MissingClosingParenthesis")
+
+        self.obj_inheritance.append({
+            "name": name,
+            "parent": parent
+        })
+
+        return parent
+
+    def parse_obj_name(self):
+        obj_name_token = self.peek()
+
+        if obj_name_token[0] == "Identifier":
+            self.obj_names.append(obj_name_token[1])
+            self.advance()
+            return obj_name_token[1]
+
+        self.diagnostics.append(Diagnostic(
+            "NamingError",
+            f"Object in {obj_name_token[2]} column "
+            f"{obj_name_token[3]}, has an invalid name",
+            obj_name_token[2],
+            obj_name_token[3],
+            7,
+            len(obj_name_token[1])
+        ))
+
+        return None
+
+    def parse_initialization(self):
+        self.advance()
+        current_token = self.peek()
+        inits = []
+        while current_token[1] != "func" and current_token[0] not in [
+            "Dedent", "EOF"
+        ]:
+            if current_token[0] == "Newline":
+                self.advance()
+            else:
+                statement = self.parse_statement()
+                if statement is not None:
+                    inits.append(statement)
+
+            current_token = self.peek()
+        return inits
+
+    def parse_arguments(self):
+        arguments = []
+        keyword_arguments = {}
+        current_token = self.peek()
+        if current_token[0] == "RightParen":
+            return arguments, keyword_arguments
+        while True:
+            next_token = (
+                self.tokens[self.position + 1]
+                if self.position + 1 < len(self.tokens)
+                else None
+            )
+            if (
+                current_token[0] == "Identifier"
+                and next_token is not None
+                and next_token.type == "Equal"
+            ):
+                name = current_token[1]
+                self.advance()
+                self.advance()
+                keyword_arguments[name] = self.parse_expression()
+            else:
+                arguments.append(self.parse_expression())
+            current_token = self.peek()
+            if current_token[0] == "Comma":
+                self.advance()
+                current_token = self.peek()
+                if current_token[0] == "RightParen":
+                    break
+            else:
+                break
+        return arguments, keyword_arguments
+
+    def parse_methods(self):
+        methods = []
+        current_token = self.peek()
+        while current_token[0] not in ["Dedent", "EOF"]:
+            if current_token[0] in ["Newline", "Indent"]:
+                self.advance()
+            elif current_token[1] == "func":
+                methods.append(self.parse_func())
+            else:
+                self.diagnostics.append(Diagnostic(
+                    "MissingFunctionError",
+                    f"missing a function in an object line "
+                    f"{current_token[2]}, column {current_token[3]}",
+                    current_token[2],
+                    current_token[3],
+                    9,
+                    len(current_token[1])
+                ))
+                break
+            current_token = self.peek()
+        return methods
+
     def parse_while(self):
         self.advance()
         condition = self.parse_expression()
         self.expect("Semicolon", "MissingSemicolonError")
         block = self.parse_block()
+        else_block = None
+        self.match("Newline")
+        current_token = self.peek()
+        if current_token[1] == "else":
+            self.advance()
+            self.expect("Semicolon", "MissingSemicolonError")
+            else_block = self.parse_block()
         return {
             "type": "While",
             "condition": condition,
-            "block": block
+            "block": block,
+            "else_block": else_block
         }
 
     def parse_for(self):
@@ -213,6 +367,7 @@ class Parser:
 
                 self.expect("Semicolon", "MissingSemicolonError")
                 caught_block = self.parse_block()
+                self.match("Newline")
                 caughts[caught_number] = {
                     "type": caught_type,
                     "block": caught_block,
@@ -224,6 +379,7 @@ class Parser:
                 self.advance()
                 self.expect("Semicolon", "MissingSemicolonError")
                 else_block = self.parse_block()
+                self.match("Newline")
                 current_token = self.peek()
 
             if current_token[1] == "finally":
@@ -281,17 +437,44 @@ class Parser:
                 "type": "return",
                 "value": value
             }
+        elif current_token[1] == "throw":
+            value = None
+            self.advance()
+            current_token = self.peek()
+            if current_token[0] not in ["Newline", "Indent", "Dedent", "EOF"]:
+                value = self.parse_expression()
+            return {
+                "type": "throw",
+                "value": value
+            }
 
     def parse_use_from_var(self):
         from_tab = None
         var_tab = None
         current_token = self.peek()
+
+        # Import module names may be ordinary identifiers (e.g. `math`) or
+        # relative file paths (e.g. `../objects/player` or `./helpers/util.fch`).
+        # The lexer tokenizes path separators separately, so collect their raw
+        # token values until the relevant FACOH keyword or semicolon.
+        def read_module_path(stop_words):
+            parts = []
+            while self.peek()[0] != "EOF" and self.peek()[0] != "Semicolon":
+                token = self.peek()
+                if token[0] == "Identifier" and token[1] in stop_words:
+                    break
+                if token[0] == "Newline":
+                    break
+                parts.append(str(token[1]))
+                self.advance()
+            return "".join(parts)
+
         if current_token[1] == "use":
             self.advance()
-            name = self.peek()[1]
-            self.expect("Identifier", "MissingIdentifier")
-            current_token = self.peek()
-            if current_token[1] == "var":
+            name = read_module_path({"var"})
+            if not name:
+                self.expect("Identifier", "MissingIdentifier")
+            if self.peek()[1] == "var":
                 self.advance()
                 var_tab = self.peek()[1]
                 self.expect("Identifier", "MissingIdentifier")
@@ -299,8 +482,11 @@ class Parser:
 
         elif current_token[1] == "from":
             self.advance()
-            from_tab = self.peek()[1]
-            self.expect("Identifier", "MissingIdentifier")
+            from_tab = read_module_path({"use"})
+            if not from_tab:
+                self.expect("Identifier", "MissingIdentifier")
+            if self.peek()[1] == "use":
+                self.advance()
             name = self.peek()[1]
             self.expect("Identifier", "MissingIdentifier")
             current_token = self.peek()
@@ -337,6 +523,12 @@ class Parser:
 
     def parse_primary(self, allow_assignment=False):
         current_token = self.peek()
+        if current_token[0] == "FString":
+            self.advance()
+            return {
+                "type": "fstring",
+                "value": current_token[1]
+            }
         if current_token[0] in ["String", "Number", "Float", "Boolean"]:
             self.advance()
             return {
@@ -347,27 +539,35 @@ class Parser:
             return self.parse_identifier(current_token, allow_assignment)
         elif current_token[0] == "LeftParen":
             self.advance()
+            if self.match("RightParen"):
+                return {
+                    "type": "Tuple",
+                    "elements": []
+                }
+
             expression = self.parse_expression()
+            if self.match("Comma"):
+                elements = [expression]
+                while self.peek()[0] != "RightParen":
+                    elements.append(self.parse_expression())
+                    if not self.match("Comma"):
+                        break
+                self.expect("RightParen", "MissingClosingParen")
+                return {
+                    "type": "Tuple",
+                    "elements": elements
+                }
             if self.expect("RightParen", "MissingClosingParen"):
                 return expression
 
         elif current_token[0] == "LeftBracket":
             self.advance()
-            current_token = self.peek()
             elements = []
-            if current_token[0] == "RightBracket":
-                self.advance()
-                return {
-                    "type": "List",
-                    "elements": elements
-                }
-            elements.append(self.parse_expression())
-            current_token = self.peek()
-
-            while current_token[0] == "Comma":
-                self.advance()
+            while self.peek()[0] != "RightBracket" and self.peek()[0] != "EOF":
                 elements.append(self.parse_expression())
-                current_token = self.peek()
+                if not self.match("Comma"):
+                    break
+                # A trailing comma before ] is valid.
             if self.expect("RightBracket", "MissingClosingBracket"):
                 return {
                     "type": "List",
@@ -376,28 +576,16 @@ class Parser:
 
         elif current_token[0] == "LeftBrace":
             self.advance()
-            current_token = self.peek()
             dictionary = {}
-            if current_token[0] == "RightBrace":
-                self.advance()
-                return {
-                    "type": "Dictionary",
-                    "contents": dictionary
-                }
-            key = self.parse_key()
-            self.expect("Equal", "MissingEquals")
-            value = self.parse_value()
-            dictionary[key] = value
-            current_token = self.peek()
-
-            while current_token[0] == "Comma":
-                self.advance()
+            while self.peek()[0] != "RightBrace" and self.peek()[0] != "EOF":
                 key = self.parse_key()
                 self.expect("Equal", "MissingEquals")
                 value = self.parse_value()
-                dictionary[key] = value
-                current_token = self.peek()
-
+                if key is not None:
+                    dictionary[key] = value
+                if not self.match("Comma"):
+                    break
+                # A trailing comma before } is valid.
             if self.expect("RightBrace", "MissingClosingBrace"):
                 return {
                     "type": "Dictionary",
@@ -531,12 +719,17 @@ class Parser:
             statements = []
             current_token = self.peek()
             while current_token[0] not in ["Dedent", "EOF"]:
+                before = self.position
                 if current_token[0] != "Newline":
-                    statements.append(self.parse_statement())
-                    current_token = self.peek()
+                    statement = self.parse_statement()
+                    if statement is not None:
+                        statements.append(statement)
                 else:
                     self.advance()
-                    current_token = self.peek()
+                # Error recovery: malformed input must not trap the parser in a loop.
+                if self.position == before and self.peek()[0] != "EOF":
+                    self.advance()
+                current_token = self.peek()
             if current_token[0] == "Dedent":
                 self.advance()
             return statements
@@ -547,22 +740,13 @@ class Parser:
         current_token = self.peek()
         if current_token[0] == "LeftParen":
             self.advance()
-            arguments = []
-            current_token = self.peek()
-            if current_token[0] == "RightParen":
-                self.advance()
-            else:
-                arguments.append(self.parse_expression())
-                current_token = self.peek()
-                while current_token[0] == "Comma":
-                    self.advance()
-                    arguments.append(self.parse_expression())
-                    current_token = self.peek()
-                self.expect("RightParen", "MissingClosingParen")
+            arguments, keyword_arguments = self.parse_arguments()
+            self.expect("RightParen", "MissingClosingParen")
             return {
                 "type": "Call",
                 "name": identifier[1],
-                "arguments": arguments
+                "arguments": arguments,
+                "keyword_arguments": keyword_arguments
             }
 
         elif current_token[0] == "LeftBracket":
@@ -583,15 +767,55 @@ class Parser:
                 "object": identifier[1],
                 "index": index
             }
+
         elif current_token[0] == "Equal" and allow_assignment:
             self.advance()
             expression = self.parse_expression()
-
             return {
                 "type": "Assignment",
                 "name": identifier[1],
                 "value": expression
             }
+
+        elif current_token[0] == "Dot":
+            expression = {
+                "type": "Variable",
+                "name": identifier[1]
+            }
+            while self.peek()[0] == "Dot":
+                self.advance()
+                attribute = self.peek()
+                self.expect("Identifier", "MissingIdentifier")
+                if self.peek()[0] == "LeftParen":
+                    self.advance()
+                    arguments, keyword_arguments = self.parse_arguments()
+                    self.expect(
+                        "RightParen",
+                        "MissingClosingParenthesis"
+                    )
+                    expression = {
+                        "type": "MethodCall",
+                        "object": expression,
+                        "method": attribute[1],
+                        "arguments": arguments,
+                        "keyword_arguments": keyword_arguments
+                    }
+                elif self.peek()[0] == "Equal" and allow_assignment:
+                    self.advance()
+                    value = self.parse_expression()
+                    return {
+                        "type": "AttributeAssignment",
+                        "object": expression,
+                        "attribute": attribute[1],
+                        "value": value
+                    }
+                else:
+                    expression = {
+                        "type": "Attribute",
+                        "object": expression,
+                        "attribute": attribute[1]
+                    }
+            return expression
 
         return {
             "type": "Variable",
@@ -601,10 +825,14 @@ class Parser:
     def parse_program(self):
         result = []
         while not self.eof_reached:
+            before = self.position
             if not self.match("Newline"):
                 statement = self.parse_statement()
                 if statement is not None:
                     result.append(statement)
+            # Always make progress on invalid input; the linter must never hang.
+            if self.position == before and self.peek()[0] != "EOF":
+                self.advance()
 
         if self.mode == "Diagnostics + Output":
             return [result, self.diagnostics]

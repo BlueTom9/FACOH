@@ -1,0 +1,95 @@
+dis("=== FACOH RUNTIME TEST ===")
+
+# Core built-ins
+dis("CORE")
+dis(num("42"), dec("3.5"), str(123), bool(1))
+dis(length([1, 2, 3]), type(42))
+dis(lis([1, 2]), tup([1, 2]), dic(), set())
+dis(numste(3), ind(["a", "b"]))
+dis(sorted([3, 1, 2]), sum([1, 2, 3]))
+dis(min(1, 2), max(1, 2), abs(-5), round(3.14159, 2))
+dis(any([0, 1]), all([1, 1]))
+dis(zip([1, 2], [3, 4]))
+dis(map(str, [1, 2]))
+dis(filter(bool, [0, 1, 2]))
+dis(isinstance(1, num), callable(str))
+dis(repr("test"), hash("test"), id(42))
+
+# Math
+dis(ceil(2.3), floor(2.7), sqrt(9), pow(2, 3))
+dis(fabs(-4), factorial(5), gcd(12, 8), lcm(4, 6))
+dis(exp(0), log(e), log10(100))
+dis(sin(0), cos(0), tan(0))
+dis(asin(0), acos(1), atan(0))
+dis(degrees(pi), radians(180))
+dis(pi, e, tau, inf, isnan(nan))
+dis(isinf(inf), isfinite(1), comb(5, 2), perm(5, 2))
+dis(divmod(10, 3))
+
+# Random
+dis(random())
+dis(randint(1, 1), randrange(1))
+dis(choice([7]), choices([7], k=2))
+dis(uniform(1, 1))
+seed(123)
+dis(sample([7, 8], 1))
+shuffle([1, 2, 3])
+
+# Strings and regex
+dis(ascii_letters, digits)
+dis(ascii_lowercase, ascii_uppercase)
+dis(hexdigits, octdigits, punctuation, whitespace)
+found = search("bc", "abcd")
+dis(found.group())
+found = match("ab", "abcd")
+dis(found.group())
+found = fullmatch("ab", "ab")
+dis(found.group())
+dis(findall("[0-9]", "a1b2"))
+dis(split(",", "a,b"))
+dis(sub("a", "x", "cat"))
+dis(subn("a", "x", "cat"))
+dis(escape("a.b"))
+
+# Date and time
+dis(dat(2026, 1, 2))
+dis(dte(2026, 1, 2))
+dis(tme(12, 30))
+dis(tmedel(days=1))
+dis(rn(), tdy())
+dis(frmts(0))
+dis(strftime(dat(2026, 1, 2), "%Y"))
+dis(strptime("2026", "%Y"))
+
+# File I/O
+dis(getcwd())
+f = open("facoh_runtime_test.txt", "w")
+f.write("FACOH test")
+f.close()
+f = open("facoh_runtime_test.txt", "r")
+dis(f.read())
+f.close()
+
+# FCH JSON conversion
+json_text = turnjson([1, 2, 3])
+dis(json_text)
+decoded = turnfch(json_text)
+dis(decoded)
+
+# Functions and loops
+func add(a, b);
+    return a + b
+
+dis(add(20, 22))
+
+total = 0
+for i in numste(1, 101);
+    total = total + i
+dis("Loop total:", total)
+
+if total = 5050;
+    dis("PASS")
+else;
+    dis("FAIL")
+
+dis("=== TEST COMPLETE ===")
